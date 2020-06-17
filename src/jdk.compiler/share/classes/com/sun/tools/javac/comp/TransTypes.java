@@ -551,6 +551,10 @@ public class TransTypes extends TreeTranslator {
         Type prevRetType = returnType;
         try {
             returnType = erasure(tree.getDescriptorType(types)).getReturnType();
+//            System.err.println("  tree.params: " + tree.params +
+//                    ", params.length: " + tree.params.length());
+//            tree.params.forEach( t -> System.err.println("    n: " + t.getName() + ", t: " + t.getType() +
+//                    ", init: " + t.getInitializer()));
             tree.params = translate(tree.params);
             tree.body = translate(tree.body, tree.body.type == null || returnType.hasTag(VOID) ? null : returnType);
             if (!tree.type.isIntersection()) {
@@ -559,6 +563,11 @@ public class TransTypes extends TreeTranslator {
                 tree.type = types.erasure(types.findDescriptorSymbol(tree.type.tsym).owner.type);
             }
             result = tree;
+        } catch (NullPointerException npe) {
+//            System.err.println("tree: " + tree);
+//            System.err.println("tree.params: " + tree.params);
+//            System.err.println("tree.body: " + tree.body);
+            throw npe;
         }
         finally {
             returnType = prevRetType;

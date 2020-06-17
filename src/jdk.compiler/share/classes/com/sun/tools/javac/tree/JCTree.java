@@ -1778,7 +1778,14 @@ public abstract class JCTree implements Tree, Cloneable, DiagnosticPosition {
             this.args = args;
         }
         @Override
-        public void accept(Visitor v) { v.visitApply(this); }
+        public void accept(Visitor v) {
+            try {
+                v.visitApply(this);
+            } catch (NullPointerException npe) {
+//                System.err.println("meth: " + meth + ", args: " + args);
+                throw npe;
+            }
+        }
 
         @DefinedBy(Api.COMPILER_TREE)
         public Kind getKind() { return Kind.METHOD_INVOCATION; }
