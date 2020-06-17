@@ -27,6 +27,7 @@ package java.lang.invoke;
 
 import jdk.internal.access.JavaLangAccess;
 import jdk.internal.access.SharedSecrets;
+import jdk.internal.misc.VM;
 import jdk.internal.org.objectweb.asm.*;
 import sun.invoke.util.BytecodeDescriptor;
 import sun.security.action.GetPropertyAction;
@@ -39,6 +40,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.PropertyPermission;
@@ -59,6 +61,7 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
     private static final String METHOD_DESCRIPTOR_VOID = Type.getMethodDescriptor(Type.VOID_TYPE);
     private static final String JAVA_LANG_OBJECT = "java/lang/Object";
     private static final String NAME_CTOR = "<init>";
+    private static final String NAME_INLINE_CTOR = "<init>";
 
     //Serialization support
     private static final String NAME_SERIALIZED_LAMBDA = "java/lang/invoke/SerializedLambda";
@@ -94,6 +97,8 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
 
     private static final boolean disableEagerInitialization;
 
+    private static final int inlineProxyOption;
+    private static final boolean DEBUG;
     static {
         final String dumpProxyClassesKey = "jdk.internal.lambda.dumpProxyClasses";
         String dumpPath = GetPropertyAction.privilegedGetProperty(dumpProxyClassesKey);
@@ -101,6 +106,14 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
 
         final String disableEagerInitializationKey = "jdk.internal.lambda.disableEagerInitialization";
         disableEagerInitialization = GetBooleanAction.privilegedGetProperty(disableEagerInitializationKey);
+
+        // "true" == 1, "false" == 0, ""  == -1
+        final String inlineProxyClassOption =
+                GetPropertyAction.privilegedGetProperty("jdk.internal.lambda.inlineProxy");
+        inlineProxyOption =
+                (inlineProxyClassOption == null || inlineProxyClassOption.isEmpty()) ? -1 :
+                ("true".equals(inlineProxyClassOption)) ? 1 : 0;
+        DEBUG = GetBooleanAction.privilegedGetProperty("DEBUG");
     }
 
     // See context values in AbstractValidatingLambdaMetafactory
@@ -114,6 +127,14 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
     private final String lambdaClassName;            // Generated name for the generated class "X$$Lambda$1"
     private final boolean useImplMethodHandle;       // use MethodHandle invocation instead of symbolic bytecode invocation
 
+    private boolean genInline;                       // To generate inline class instead of normal
+
+
+    private static void DEBUG(String s) {
+        if (DEBUG) {
+            System.err.println(s);
+        }
+    }
     /**
      * General meta-factory constructor, supporting both standard cases and
      * allowing for uncommon options such as serialization or bridging.
@@ -164,10 +185,11 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
         super(caller, invokedType, samMethodName, samMethodType,
               implMethod, instantiatedMethodType,
               isSerializable, markerInterfaces, additionalBridges);
+        genInline = (inlineProxyOption > 0 || (inlineProxyOption < 0 && VM.isBooted()));
         implMethodClassName = implClass.getName().replace('.', '/');
         implMethodName = implInfo.getName();
         implMethodDesc = implInfo.getMethodType().toMethodDescriptorString();
-        constructorType = invokedType.changeReturnType(Void.TYPE);
+        constructorType = invokedType.changeReturnType(genInline ? Object.class : Void.TYPE);
         lambdaClassName = lambdaClassName(targetClass);
         useImplMethodHandle = !implClass.getPackageName().equals(implInfo.getDeclaringClass().getPackageName())
                                 && !Modifier.isPublic(implInfo.getModifiers());
@@ -182,6 +204,20 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
             }
         } else {
             argNames = argDescs = EMPTY_STRING_ARRAY;
+        }
+
+        DEBUG("invokedType: " + invokedType);
+        if (genInline) {
+//            DEBUG("samMethodName: " + samMethodName);
+//            DEBUG("lambdaClassName: " + lambdaClassName);
+//            DEBUG("implMethod: " + implMethod);
+//            DEBUG("instantiatedMethodType: " + instantiatedMethodType);
+//            DEBUG("markerInterfaces: " + Arrays.toString(markerInterfaces));
+//            DEBUG("implMethodName: " + implMethodName);
+//            DEBUG("implMethodDesc: " + implMethodDesc);
+//            DEBUG("constructorType: " + constructorType);
+//            DEBUG("argNames: " + Arrays.toString(argNames));
+//            DEBUG("argDescs: " + Arrays.toString(argDescs));
         }
     }
 
@@ -237,7 +273,9 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
             }
         } else {
             try {
-                MethodHandle mh = caller.findConstructor(innerClass, invokedType.changeReturnType(void.class));
+                MethodHandle mh = (genInline)
+                        ? caller.findStatic(innerClass, NAME_INLINE_CTOR, constructorType)
+                        : caller.findConstructor(innerClass, constructorType);
                 return new ConstantCallSite(mh.asType(invokedType));
             } catch (ReflectiveOperationException e) {
                 throw new LambdaConversionException("Exception finding constructor", e);
@@ -318,7 +356,9 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
             interfaces = itfs.toArray(new String[itfs.size()]);
         }
 
-        cw.visit(CLASSFILE_VERSION, ACC_SUPER + ACC_FINAL + ACC_SYNTHETIC,
+        int classFlags = ((genInline) ? ACC_INLINE : ACC_SUPER) +
+                ACC_FINAL + ACC_SYNTHETIC;
+        cw.visit(CLASSFILE_VERSION, classFlags,
                  lambdaClassName, null,
                  JAVA_LANG_OBJECT, interfaces);
 
@@ -331,7 +371,11 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
             fv.visitEnd();
         }
 
-        generateConstructor();
+        if (genInline) {
+            generateStaticConstructor();
+        } else {
+            generateConstructor();
+        }
 
         // Forward the SAM method
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, samMethodName,
@@ -404,6 +448,8 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
      * Generate the constructor for the class
      */
     private void generateConstructor() {
+        DEBUG("generating constructor for: " + lambdaClassName);
+
         // Generate constructor
         MethodVisitor ctor = cw.visitMethod(ACC_PRIVATE, NAME_CTOR,
                                             constructorType.toMethodDescriptorString(), null, null);
@@ -420,6 +466,31 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
             ctor.visitFieldInsn(PUTFIELD, lambdaClassName, argNames[i], argDescs[i]);
         }
         ctor.visitInsn(RETURN);
+        // Maxs computed by ClassWriter.COMPUTE_MAXS, these arguments ignored
+        ctor.visitMaxs(-1, -1);
+        ctor.visitEnd();
+    }
+
+    /**
+     * Generate the static constructor for the inline class.
+     */
+    private void generateStaticConstructor() {
+        DEBUG("generating constructor for: " + lambdaClassName);
+//        +
+//                        "." + constructorType.toMethodDescriptorString());
+        // Generate constructor
+        MethodVisitor ctor = cw.visitMethod(ACC_PRIVATE | ACC_STATIC, NAME_INLINE_CTOR,
+                constructorType.toMethodDescriptorString(), null, null);
+        ctor.visitCode();
+        ctor.visitTypeInsn(DEFAULT, lambdaClassName);
+        int parameterCount = invokedType.parameterCount();
+        for (int i = 0, lvIndex = 0; i < parameterCount; i++) {
+            Class<?> argType = invokedType.parameterType(i);
+            ctor.visitVarInsn(getLoadOpcode(argType), lvIndex);
+            lvIndex += getParameterSize(argType);
+            ctor.visitFieldInsn(WITHFIELD, lambdaClassName, argNames[i], argDescs[i]);
+        }
+        ctor.visitInsn(ARETURN);
         // Maxs computed by ClassWriter.COMPUTE_MAXS, these arguments ignored
         ctor.visitMaxs(-1, -1);
         ctor.visitEnd();
