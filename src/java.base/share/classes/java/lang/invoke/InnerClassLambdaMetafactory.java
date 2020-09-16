@@ -30,6 +30,7 @@ import jdk.internal.access.SharedSecrets;
 import jdk.internal.misc.VM;
 import jdk.internal.org.objectweb.asm.*;
 import sun.invoke.util.BytecodeDescriptor;
+import sun.security.action.GetIntegerAction;
 import sun.security.action.GetPropertyAction;
 import sun.security.action.GetBooleanAction;
 
@@ -98,7 +99,7 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
     private static final boolean disableEagerInitialization;
 
     private static final int inlineProxyOption;
-    private static final boolean DEBUG;
+    private static final int DEBUG;
     static {
         final String dumpProxyClassesKey = "jdk.internal.lambda.dumpProxyClasses";
         String dumpPath = GetPropertyAction.privilegedGetProperty(dumpProxyClassesKey);
@@ -113,7 +114,7 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
         inlineProxyOption =
                 (inlineProxyClassOption == null || inlineProxyClassOption.isEmpty()) ? -1 :
                 ("true".equals(inlineProxyClassOption)) ? 1 : 0;
-        DEBUG = GetBooleanAction.privilegedGetProperty("DEBUG");
+        DEBUG = Integer.valueOf(GetPropertyAction.privilegedGetProperty("DEBUG", "0"));
     }
 
     // See context values in AbstractValidatingLambdaMetafactory
@@ -131,7 +132,7 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
 
 
     private static void DEBUG(String s) {
-        if (DEBUG) {
+        if (DEBUG != 0) {
             System.err.println(s);
         }
     }
@@ -185,12 +186,16 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
         super(caller, invokedType, samMethodName, samMethodType,
               implMethod, instantiatedMethodType,
               isSerializable, markerInterfaces, additionalBridges);
+        lambdaClassName = lambdaClassName(targetClass);
         genInline = (inlineProxyOption > 0 || (inlineProxyOption < 0 && VM.isBooted()));
+        if (counter.get() < DEBUG)
+            genInline = false;
+        if ((DEBUG < 0 && counter.get() == -DEBUG))
+            genInline = !genInline;
         implMethodClassName = implClass.getName().replace('.', '/');
         implMethodName = implInfo.getName();
         implMethodDesc = implInfo.getMethodType().toMethodDescriptorString();
         constructorType = invokedType.changeReturnType(genInline ? Object.class : Void.TYPE);
-        lambdaClassName = lambdaClassName(targetClass);
         useImplMethodHandle = !implClass.getPackageName().equals(implInfo.getDeclaringClass().getPackageName())
                                 && !Modifier.isPublic(implInfo.getModifiers());
         cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
@@ -205,8 +210,11 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
         } else {
             argNames = argDescs = EMPTY_STRING_ARRAY;
         }
-
-        DEBUG("invokedType: " + invokedType);
+        String prefix = genInline ? "Inline> " : "         ";
+        DEBUG("        " + "-".repeat(80) + "\n" + prefix + "new InnerClassLambdaMetafactory for " +
+                lambdaClassName + ", type: " + invokedType);
+//        if (DEBUG != 0 && counter.get() >= (Math.abs(DEBUG)))
+//            Thread.dumpStack();
         if (genInline) {
 //            DEBUG("samMethodName: " + samMethodName);
 //            DEBUG("lambdaClassName: " + lambdaClassName);
@@ -448,7 +456,7 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
      * Generate the constructor for the class
      */
     private void generateConstructor() {
-        DEBUG("generating constructor for: " + lambdaClassName);
+//        DEBUG("    generating constructor for: " + lambdaClassName);
 
         // Generate constructor
         MethodVisitor ctor = cw.visitMethod(ACC_PRIVATE, NAME_CTOR,
@@ -475,7 +483,7 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
      * Generate the static constructor for the inline class.
      */
     private void generateStaticConstructor() {
-        DEBUG("generating constructor for: " + lambdaClassName);
+//        DEBUG("   generating static constructor for inline class: " + lambdaClassName);
 //        +
 //                        "." + constructorType.toMethodDescriptorString());
         // Generate constructor

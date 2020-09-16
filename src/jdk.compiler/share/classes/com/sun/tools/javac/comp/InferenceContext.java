@@ -28,7 +28,6 @@ package com.sun.tools.javac.comp;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -258,24 +257,30 @@ public class InferenceContext {
     }
 
     void notifyChange(List<Type> inferredVars) {
-        InferenceException thrownEx = null;
-        for (Map.Entry<FreeTypeListener, List<Type>> entry :
-                new LinkedHashMap<>(freeTypeListeners).entrySet()) {
-            if (!Type.containsAny(entry.getValue(), inferencevars.diff(inferredVars))) {
-                try {
-                    entry.getKey().typesInferred(this);
-                    freeTypeListeners.remove(entry.getKey());
-                } catch (InferenceException ex) {
-                    if (thrownEx == null) {
-                        thrownEx = ex;
+        try {
+            InferenceException thrownEx = null;
+            for (Map.Entry<FreeTypeListener, List<Type>> entry :
+                    new LinkedHashMap<>(freeTypeListeners).entrySet()) {
+                if (!Type.containsAny(entry.getValue(), inferencevars.diff(inferredVars))) {
+                    try {
+                        if (DEBUG != 0)
+                            System.err.println(" inferred type: " + entry + ", inferredVars: " + inferredVars);
+                        entry.getKey().typesInferred(this);
+                        freeTypeListeners.remove(entry.getKey());
+                    } catch (InferenceException ex) {
+                        if (thrownEx == null) {
+                            thrownEx = ex;
+                        }
                     }
                 }
             }
-        }
-        //inference exception multiplexing - present any inference exception
-        //thrown when processing listeners as a single one
-        if (thrownEx != null) {
-            throw thrownEx;
+            //inference exception multiplexing - present any inference exception
+            //thrown when processing listeners as a single one
+            if (thrownEx != null) {
+                throw thrownEx;
+            }
+        } catch (NoSuchMethodError err) {
+            err.printStackTrace();
         }
     }
 
@@ -323,14 +328,39 @@ public class InferenceContext {
         dupTo(that, false);
     }
 
+
+    private static final int DEBUG = Integer.getInteger("DEBUG", 0);
+    private static void DEBUG(String s) {
+        if (DEBUG != 0) {
+            System.err.println(s);
+        }
+    }
     void dupTo(final InferenceContext that, boolean clone) {
+//        System.out.println("  shouldNotify: " + inferencevars +
+//                ", that.inferencevars: " + that.inferencevars +
+//                ", undetvars: " + undetvars);
         that.inferencevars = that.inferencevars.appendList(inferencevars.diff(that.inferencevars));
         List<Type> undetsToPropagate = clone ? save() : undetvars;
         that.undetvars = that.undetvars.appendList(undetsToPropagate.diff(that.undetvars)); //propagate cloned undet!!
         //set up listeners to notify original inference contexts as
         //propagated vars are inferred in new context
-        for (Type t : inferencevars) {
-            that.freeTypeListeners.put(inferenceContext -> InferenceContext.this.notifyChange(), List.of(t));
+        try {
+            for (Type t : inferencevars) {
+//            FreeTypeListener l = inferenceContext -> InferenceContext.this.notifyChange();
+                FreeTypeListener l = inferenceContext -> {
+                    InferenceContext.this.notifyChange();
+                    DEBUG("    notifyChange: this: " + this + ", this.cl: " + this.getClass());
+                    //+ ", t: " + t);
+                    if (DEBUG != 0)
+                        Thread.dumpStack();
+                };
+                that.freeTypeListeners.put(l, List.of(t));
+                DEBUG("IC this: " + this + ", that: " + that + ", t: " + t);
+                if (DEBUG != 0)
+                    Thread.dumpStack();
+            }
+        } catch (NoSuchMethodError err) {
+            err.printStackTrace();
         }
     }
 

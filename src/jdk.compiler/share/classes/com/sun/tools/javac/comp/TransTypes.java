@@ -564,9 +564,9 @@ public class TransTypes extends TreeTranslator {
             }
             result = tree;
         } catch (NullPointerException npe) {
-//            System.err.println("tree: " + tree);
-//            System.err.println("tree.params: " + tree.params);
-//            System.err.println("tree.body: " + tree.body);
+            System.err.println("tree: " + tree);
+            System.err.println("tree.params: " + tree.params);
+            System.err.println("tree.body: " + tree.body);
             throw npe;
         }
         finally {
