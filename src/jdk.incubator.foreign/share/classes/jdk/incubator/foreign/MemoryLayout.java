@@ -183,6 +183,7 @@ VarHandle valueHandle = taggedValues.varHandle(int.class,
  * @implSpec
  * Implementations of this interface are immutable, thread-safe and <a href="{@docRoot}/java.base/java/lang/doc-files/ValueBased.html">value-based</a>.
  */
+@jdk.internal.ValueBased
 public interface MemoryLayout extends Constable {
 
     /**

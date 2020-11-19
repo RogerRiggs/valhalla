@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
  * @implSpec
  * This class is immutable and thread-safe.
  */
+@jdk.internal.ValueBased
 public final class GroupLayout extends AbstractLayout {
 
     /**

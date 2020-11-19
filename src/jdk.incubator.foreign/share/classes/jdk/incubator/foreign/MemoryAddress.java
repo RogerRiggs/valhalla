@@ -54,6 +54,7 @@ import jdk.internal.foreign.MemoryAddressImpl;
  * @implSpec
  * Implementations of this interface are immutable, thread-safe and <a href="{@docRoot}/java.base/java/lang/doc-files/ValueBased.html">value-based</a>.
  */
+@jdk.internal.ValueBased
 public interface MemoryAddress {
     /**
      * Creates a new memory address with given offset (in bytes), which might be negative, from current one.

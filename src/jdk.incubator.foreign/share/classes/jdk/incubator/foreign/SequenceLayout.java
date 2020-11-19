@@ -63,6 +63,7 @@ MemoryLayout.ofStruct(
  * @implSpec
  * This class is immutable and thread-safe.
  */
+@jdk.internal.ValueBased
 public final class SequenceLayout extends AbstractLayout {
 
     private final OptionalLong elemCount;
