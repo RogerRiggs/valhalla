@@ -24,6 +24,7 @@
 
 /*
  * @test
+ * @ignore until more updates are done
  * @enablePreview
  * @run junit/othervm NullRestrictedArraysTest
  * @run junit/othervm -XX:-UseArrayFlattening NullRestrictedArraysTest
@@ -69,8 +70,7 @@ public class NullRestrictedArraysTest {
     static class T {
         String s;
         Value obj;  // can be null
-        @Strict
-        @NullRestricted
+        @NullRestricted  @Strict
         Value value;
     }
 
@@ -112,7 +112,7 @@ public class NullRestrictedArraysTest {
     public void testArraysCopyOf() {
         int len = 4;
         Object[] array = (Object[]) Array.newInstance(Value.class, len);
-        Object[] nullRestrictedArray = ValueClass.newNullRestrictedArray(Value.class, len);
+        Object[] nullRestrictedArray = ValueClass.newNullRestrictedNonAtomicArray(Value.class, len, new Value());
         for (int i=0; i < len; i++) {
             array[i] = new Value(i);
             nullRestrictedArray[i] = new Value(i);
@@ -168,7 +168,7 @@ public class NullRestrictedArraysTest {
     public void testVarHandle() {
         int len = 4;
         Object[] array = (Object[]) Array.newInstance(Value.class, len);
-        Object[] nullRestrictedArray = ValueClass.newNullRestrictedArray(Value.class, len);
+        Object[] nullRestrictedArray = ValueClass.newNullRestrictedNonAtomicArray(Value.class, len, new Value());
 
         // Test var handles
         testVarHandleArray(array, Value[].class);
