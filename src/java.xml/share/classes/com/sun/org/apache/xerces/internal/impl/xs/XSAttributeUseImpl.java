@@ -158,4 +158,8 @@ public class XSAttributeUseImpl implements XSAttributeUse {
         return (fAnnotations != null) ? fAnnotations : XSObjectListImpl.EMPTY_LIST;
     }
 
+    public String toString() {
+        return this.getClass().getName() + ":: name: " + getName() + ", ns: " + getNamespace();
+    }
+
 } // class XSAttributeUseImpl

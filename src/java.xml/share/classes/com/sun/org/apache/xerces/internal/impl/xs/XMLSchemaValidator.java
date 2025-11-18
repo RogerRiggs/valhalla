@@ -120,7 +120,7 @@ public class XMLSchemaValidator
     //
     // Constants
     //
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = System.getProperty("DEBUG") != null;
 
     // feature identifiers
 
@@ -2990,6 +2990,12 @@ public class XMLSchemaValidator
                 //    reportSchemaError("cvc-complex-type.3.2.1", new Object[]{element.rawname, fTempQName.rawname});
                 if (attrWildcard == null || !attrWildcard.allowNamespace(fTempQName.uri)) {
                     // so this attribute is not allowed
+                    System.err.println("DEBUG: currUse: " + currUse +
+                            ", rawname: " + fTempQName.rawname +
+                            ", uri: " + fTempQName.uri +
+                            ", attrWildcard: " + attrWildcard +
+                            ", allowNS: " + (attrWildcard != null && attrWildcard.allowNamespace(fTempQName.uri)));
+
                     reportSchemaError(
                         "cvc-complex-type.3.2.2",
                         new Object[] { element.rawname, fTempQName.rawname });
