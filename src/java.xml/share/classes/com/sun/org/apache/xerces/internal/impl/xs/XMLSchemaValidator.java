@@ -122,6 +122,12 @@ public class XMLSchemaValidator
     //
     private static final boolean DEBUG = System.getProperty("DEBUG") != null;
 
+
+    private static void DEBUG(String msg) {
+        if (DEBUG) {
+            System.out.println("[" + Thread.currentThread().threadId() + "] " + msg);
+        }
+    }
     // feature identifiers
 
     /** Feature identifier: validation. */
@@ -1882,8 +1888,9 @@ public class XMLSchemaValidator
     /** Handle element. */
     Augmentations handleStartElement(QName element, XMLAttributes attributes, Augmentations augs) {
 
-        if (DEBUG) {
-            System.out.println("==>handleStartElement: " + element);
+        DEBUG("==>handleStartElement: " + element);
+        if (element.rawname.startsWith("PERIODIC")) {
+            Thread.dumpStack();
         }
 
         // root element
@@ -2325,7 +2332,7 @@ public class XMLSchemaValidator
     Augmentations handleEndElement(QName element, Augmentations augs) {
 
         if (DEBUG) {
-            System.out.println("==>handleEndElement:" + element);
+            DEBUG("==>handleEndElement:" + element);
         }
         // if we are skipping, return
         if (fSkipValidationDepth >= 0) {
@@ -2881,7 +2888,7 @@ public class XMLSchemaValidator
     void processAttributes(QName element, XMLAttributes attributes, XSAttributeGroupDecl attrGrp) {
 
         if (DEBUG) {
-            System.out.println("==>processAttributes: " + attributes.getLength());
+            DEBUG("==>processAttributes: " + attributes.getLength());
         }
 
         // whether we have seen a Wildcard ID.
@@ -2913,7 +2920,7 @@ public class XMLSchemaValidator
             attributes.getName(index, fTempQName);
 
             if (DEBUG) {
-                System.out.println("==>process attribute: " + fTempQName);
+                DEBUG("==>process attribute: " + fTempQName);
             }
 
             if (fAugPSVI || fIdConstraint) {
@@ -2951,6 +2958,7 @@ public class XMLSchemaValidator
                 }
                 if (attrDecl != null) {
                     processOneAttribute(element, attributes, index, attrDecl, null, attrPSVI);
+                    DEBUG("Locally known localpart: " + attrDecl);
                     continue;
                 }
             }
@@ -2958,6 +2966,7 @@ public class XMLSchemaValidator
             // for namespace attributes, no_validation/unknow_validity
             if (fTempQName.rawname == XMLSymbols.PREFIX_XMLNS
                 || fTempQName.rawname.startsWith("xmlns:")) {
+                DEBUG("Locally known PREFIX_XMLNS: " + fTempQName);
                 continue;
             }
 
@@ -2991,6 +3000,9 @@ public class XMLSchemaValidator
                 if (attrWildcard == null || !attrWildcard.allowNamespace(fTempQName.uri)) {
                     // so this attribute is not allowed
                     System.err.println("DEBUG: currUse: " + currUse +
+                            ", element: " + element +
+                            ", index: " + index +
+                            ", attrCount: " + attCount +
                             ", rawname: " + fTempQName.rawname +
                             ", uri: " + fTempQName.uri +
                             ", attrWildcard: " + attrWildcard +
@@ -3006,6 +3018,14 @@ public class XMLSchemaValidator
                     continue;
                 }
             }
+            DEBUG("noerr-DEBUG: currUse: " + currUse +
+                    ", element: " + element +
+                    ", index: " + index +
+                    ", attrCount: " + attCount +
+                    ", rawname: " + fTempQName.rawname +
+                    ", uri: " + fTempQName.uri +
+                    ", attrWildcard: " + attrWildcard +
+                    ", allowNS: " + (attrWildcard != null && attrWildcard.allowNamespace(fTempQName.uri)));
 
             XSAttributeDecl currDecl = null;
             if (currUse != null) {
@@ -3054,7 +3074,7 @@ public class XMLSchemaValidator
                     }
                 }
             }
-
+            DEBUG("ProcessOneAttribute: " + currDecl);
             processOneAttribute(element, attributes, index, currDecl, currUse, attrPSVI);
         } // end of for (all attributes)
 
@@ -3193,7 +3213,7 @@ public class XMLSchemaValidator
         // (3) add default attrs (FIXED and NOT_FIXED)
         //
         if (DEBUG) {
-            System.out.println("==>addDefaultAttributes: " + element);
+            DEBUG("==>addDefaultAttributes: " + element);
         }
         XSObjectList attrUses = attrGrp.getAttributeUses();
         int useCount = attrUses.getLength();
