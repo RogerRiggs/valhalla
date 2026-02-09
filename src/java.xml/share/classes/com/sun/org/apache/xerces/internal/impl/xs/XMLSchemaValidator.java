@@ -1889,9 +1889,9 @@ public class XMLSchemaValidator
     Augmentations handleStartElement(QName element, XMLAttributes attributes, Augmentations augs) {
 
         DEBUG("==>handleStartElement: " + element);
-        if (element.rawname.startsWith("PERIODIC")) {
-            Thread.dumpStack();
-        }
+//        if (element.rawname.startsWith("PERIODIC")) {
+//            Thread.dumpStack();
+//        }
 
         // root element
         if (fElementDepth == -1 && fValidationManager.isGrammarFound()) {
@@ -3007,6 +3007,7 @@ public class XMLSchemaValidator
                             ", uri: " + fTempQName.uri +
                             ", attrWildcard: " + attrWildcard +
                             ", allowNS: " + (attrWildcard != null && attrWildcard.allowNamespace(fTempQName.uri)));
+                    Thread.dumpStack();
 
                     reportSchemaError(
                         "cvc-complex-type.3.2.2",
