@@ -108,6 +108,8 @@ public class SimpleValueGraphs implements Serializable {
     public static Stream<Arguments> migrationObjects() {
         return Stream.of(
                 Arguments.of(treeI, "TreeI", "TreeV", treeV), // Serialize as an identity class, deserialize as Value class
+                Arguments.of(treeV, "TreeV", "TreeI", treeI), // Serialize as value class, deserialize as identity class
+                Arguments.of(treeCycle(false), "TreeI", "TreeV", treeCycle(false)),
                 Arguments.of(treeCycle(true), "TreeI", "TreeV", treeCycle(false))
         );
     }
