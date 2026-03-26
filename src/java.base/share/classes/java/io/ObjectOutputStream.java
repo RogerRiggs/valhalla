@@ -137,8 +137,6 @@ import static jdk.internal.util.ModifiedUtf.utfLen;
  * Use {@link Serializable} {@code writeReplace} to delegate to another serializable
  * object such as a record.
  *
- * Value objects cannot be {@code java.io.Externalizable}.
- *
  * <p>Enum constants are serialized differently than ordinary serializable or
  * externalizable objects.  The serialized form of an enum constant consists
  * solely of its name; field values of the constant are not transmitted.  To
@@ -168,30 +166,42 @@ import static jdk.internal.util.ModifiedUtf.utfLen;
  * objects, see <a href="ObjectInputStream.html#record-serialization">record serialization</a>.
  *
  * <a id="valueclass-serialization"></a>
- * <p>Value classes are {@linkplain Serializable} through the use of the serialization proxy pattern.
- * The serialization protocol does not support a standard serialized form for value classes.
- * The value class delegates to a serialization proxy by supplying an alternate
- * record or object to be serialized instead of the value class.
- * When the proxy is deserialized it re-constructs the value object and returns the value object.
- * For example,
- * {@snippet lang="java" :
- * value class ZipCode implements Serializable {    // @highlight substring="value class"
- *     private static final long serialVersionUID = 1L;
- *     private int zipCode;
- *     public ZipCode(int zip) { this.zipCode = zip; }
- *     public int zipCode() { return zipCode; }
+ * <div class="preview-block">
+ *      <div class="preview-comment">
+ *          <p>When preview features are enabled, value objects are serialized
+ *          in one of two ways:
+ *          <p>The recommended way to serialize value classes is through the use of the
+ *          serialization proxy pattern.
+ *          The value class delegates to a serialization proxy by implementing
+ *          the {@code writeReplace} method. The {@code writeReplace} method supplies an
+ *          alternate record or object to be serialized instead of the value object.
+ *          When the proxy is deserialized it re-constructs the value object and returns the value object.
+ *          For example,
+ *          {@snippet lang = "java":
+ *          value class ZipCode implements Serializable {    // @highlight substring="value class"
+ *              private static final long serialVersionUID = 1L;
+ *              private int zipCode;
+ *              public ZipCode(int zip) { this.zipCode = zip; }
+ *              public int zipCode() { return zipCode; }
  *
- *     public Object writeReplace() {    // @highlight substring="writeReplace"
- *         return new ZipCodeProxy(zipCode);
- *     }
+ *              public Object writeReplace() {    // @highlight substring="writeReplace"
+ *                  return new ZipCodeProxy(zipCode);
+ *              }
  *
- *     private record ZipCodeProxy(int zipCode) implements Serializable {
- *         public Object readResolve() {    // @highlight substring="readResolve"
- *             return new ZipCode(zipCode);
+ *              private record ZipCodeProxy(int zipCode) implements Serializable {
+ *                  public Object readResolve() {    // @highlight substring="readResolve"
+ *                      return new ZipCode(zipCode);
+ *                  }
+ *              }
+ *          }
  *         }
- *     }
- * }
- * }
+ *         <p>The serialized form of a {@code Serializable} value object is the same as
+ *         the serialized form of the corresponding identity object. The values of each
+ *         serializable field are written as described in the Java Object Serialization Specification.
+ *         See {@link java.io.ObjectInputStream##valueclass-serialization value class serialization}.
+ *         </p>
+ *      </div>
+ * </div>
  *
  * @spec serialization/index.html Java Object Serialization Specification
  * @author      Mike Warres

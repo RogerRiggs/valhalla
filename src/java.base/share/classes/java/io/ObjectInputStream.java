@@ -241,9 +241,35 @@ import jdk.internal.util.ByteArray;
  * <cite>Java Object Serialization Specification,</cite> Section 1.13,
  * "Serialization of Records"</a> for additional information.
  *
- * <p>Value classes are {@linkplain Serializable} through the use of the serialization proxy pattern.
- * See {@linkplain ObjectOutputStream##valueclass-serialization value class serialization} for details.
- * When the proxy is deserialized it re-constructs and returns the value object.
+ * <a id="valueclass-serialization"></a>
+ * <div class="preview-block">
+ *      <div class="preview-comment">
+ *          <p>When preview features are enabled, {@linkplain Serializable}
+ *          {@linkplain Class#isValue value class instances} are usually serialized
+ *          using the serialization proxy mechanism as described in
+ *          {@linkplain ObjectOutputStream##valueclass-serialization value class serialization}.
+ *          When the proxy object is deserialized it invokes a constructor of the original class
+ *          and returns the newly created instance. This pattern leverages the robust
+ *          serialization of Records and the validation opportunities of constructors.
+ *          <p>For compatibility of objects migrated from identity classes to the
+ *          corresponding value classes the existing serialization protocol is leveraged
+ *          to read value objects from the stream. The mechanism uses the same technique as
+ *          {@linkplain Record} objects to read from the stream.
+ *          The essential element is using a constructor to create the object from
+ *          the values of fields extracted from the serialized stream.
+ *          The complete list of serialized fields of the class and its superclass(es)
+ *          is used to lookup a constructor with exactly those parameter types and sequence.
+ *          The field values are read from the serialized stream and a
+ *          new instance is created by invoking the constructor of the value class.
+ *          Default values are provided for parameters without a corresponding value
+ *          in the serialized stream. Values from the serialized stream without a corresponding
+ *          parameter are ignored.
+ *          <p>
+ *          See <a href="{@docRoot}/../specs/serialization/serial-arch.html#serialization-of-value-objects">
+ *          <cite>Java Object Serialization Specification,</cite> Section 1.14,
+ *          "Serialization of Value Objects"</a> for additional information.
+ *      </div>
+ * </div>
  *
  * @spec serialization/index.html Java Object Serialization Specification
  * @author      Mike Warres
@@ -421,7 +447,8 @@ public class ObjectInputStream
      * signature of the class, and the values of the non-transient and
      * non-static fields of the class and all of its supertypes are read.
      * Default deserializing for a class can be overridden using the writeObject
-     * and readObject methods.  Objects referenced by this object are read
+     * and readObject methods unless the class is a {@linkplain Class#isValue value class}.
+     * Objects referenced by this object are read
      * transitively so that a complete equivalent graph of objects is
      * reconstructed by readObject.
      *
@@ -430,28 +457,33 @@ public class ObjectInputStream
      * validation callbacks are executed in order based on their registered
      * priorities. The callbacks are registered by objects (in the readObject
      * special methods) as they are individually restored.
+     * Object callbacks for value classes can not be registered, the {@code readObject} method is not called.
      *
      * <p>The deserialization filter, when not {@code null}, is invoked for
      * each object (regular or class) read to reconstruct the root object.
      * See {@link #setObjectInputFilter(ObjectInputFilter) setObjectInputFilter} for details.
-     *
-     * <p>Serialization and deserialization of value classes is described in
-     * {@linkplain ObjectOutputStream##valueclass-serialization value class serialization}.
-     *
-     * @implSpec
-     * When enabled with {@code --enable-preview}, serialization and deserialization of
-     * Core Library value classes migrated from pre-JEP 401 identity classes is
-     * implementation specific.
      *
      * <p>Exceptions are thrown for problems with the InputStream and for
      * classes that should not be deserialized.  All exceptions are fatal to
      * the InputStream and leave it in an indeterminate state; it is up to the
      * caller to ignore or recover the stream state.
      *
+     * <div class="preview-block">
+     *      <div class="preview-comment">
+     *          <p> When preview features are enabled, value classes are serializable.
+     *          Serialization and deserialization of value classes is described in
+     *          <a href="{@docRoot}/../specs/serialization/serial-arch.html#serialization-of-value-objects">
+     *          <cite>Java Object Serialization Specification,</cite> Section 1.14,
+     *          "Serialization of Value Objects"</a>.
+     *      </div>
+     * </div>
+     *
      * @throws  ClassNotFoundException Class of a serialized object cannot be
      *          found.
      * @throws  InvalidClassException Something is wrong with a class used by
      *          deserialization.
+     * @throws  InvalidObjectException If an exception occurs while
+     *          creating the instance
      * @throws  StreamCorruptedException Control information in the
      *          stream is inconsistent.
      * @throws  OptionalDataException Primitive data was found in the
@@ -615,6 +647,9 @@ public class ObjectInputStream
      * this stream.  This may only be called from the readObject method of the
      * class being deserialized. It will throw the NotActiveException if it is
      * called otherwise.
+     * <p>
+     * The {@code defaultReadObject} method can not be called for
+     * {@linkplain Class#isValue value classes}.
      *
      * @throws  ClassNotFoundException if the class of a serialized object
      *          could not be found.
@@ -657,6 +692,9 @@ public class ObjectInputStream
     /**
      * Reads the persistent fields from the stream and makes them available by
      * name.
+     * <p>
+     * The {@code readFields} method can not be called for
+     * {@linkplain Class#isValue value classes}.
      *
      * @return  the {@code GetField} object representing the persistent
      *          fields of the object being deserialized
@@ -697,6 +735,9 @@ public class ObjectInputStream
      * graph has been reconstituted.  Typically, a readObject method will
      * register the object with the stream so that when all of the objects are
      * restored a final set of validations can be performed.
+     * <p>
+     * The {@code registerValidation} method can not be called for
+     * {@linkplain Class#isValue value classes}.
      *
      * @param   obj the object to receive the validation callback.
      * @param   prio controls the order of callbacks; zero is a good default.
